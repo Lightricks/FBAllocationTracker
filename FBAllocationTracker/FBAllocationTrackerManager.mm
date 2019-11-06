@@ -101,11 +101,12 @@ BOOL FBIsFBATEnabledInThisBuild(void)
     NSString *className = NSStringFromClass(aCls);
 
     FBAllocationTrackerSummary *summaryObject =
-    [[FBAllocationTrackerSummary alloc] initWithAllocations:singleSummary.allocations
-                                              deallocations:singleSummary.deallocations
-                                               aliveObjects:singleSummary.allocations - singleSummary.deallocations
+    [[FBAllocationTrackerSummary alloc] initWithAllocations:singleSummary.allocatedObjectsInfo.count
+                                              deallocations:singleSummary.deallocatedObjectsPointers
+                                               aliveObjects:singleSummary.allocatedObjectsInfo.count - singleSummary.deallocatedObjectsPointers.count
                                                   className:className
-                                               instanceSize:singleSummary.instanceSize];
+                                               instanceSize:singleSummary.instanceSize
+                                       allocatedObjectsInfo:singleSummary.allocatedObjectsInfo];
     [array addObject:summaryObject];
   }
 
@@ -119,10 +120,11 @@ BOOL FBIsFBATEnabledInThisBuild(void)
   for (const auto &kv: summary) {
     FBAllocationTrackerSummary *summaryObject =
     [[FBAllocationTrackerSummary alloc] initWithAllocations:0
-                                              deallocations:0
+                                              deallocations:@[]
                                                aliveObjects:kv.second
                                                   className:NSStringFromClass(kv.first)
-                                               instanceSize:class_getInstanceSize(kv.first)];
+                                               instanceSize:class_getInstanceSize(kv.first)
+                                       allocatedObjectsInfo:@[]];
 
     [array addObject:summaryObject];
   }

@@ -9,13 +9,29 @@
 
 #import "FBAllocationTrackerSummary.h"
 
+@implementation FBSingleObjectAllocation : NSObject
+
+- (nonnull instancetype)initWithObjectPointer:(nonnull NSValue *)objectPointer
+                           callStackAddresses:(nullable NSArray<NSNumber *> *)callStackAddresses
+{
+  if ((self = [super init])) {
+    _objectPointer = objectPointer;
+    _callStackAddresses = callStackAddresses;
+  }
+
+  return self;
+}
+
+@end
+
 @implementation FBAllocationTrackerSummary
 
-- (instancetype)initWithAllocations:(NSUInteger)allocations
-                      deallocations:(NSUInteger)deallocations
-                       aliveObjects:(NSInteger)aliveObjects
-                          className:(NSString *)className
-                       instanceSize:(NSUInteger)instanceSize
+- (nonnull instancetype)initWithAllocations:(NSUInteger)allocations
+                              deallocations:(nonnull NSArray<NSNumber *> *)deallocations
+                               aliveObjects:(NSInteger)aliveObjects
+                                  className:(nonnull NSString *)className
+                               instanceSize:(NSUInteger)instanceSize
+                       allocatedObjectsInfo:(nonnull NSArray<FBSingleObjectAllocation *> *)allocatedObjectsInfo;
 {
   if ((self = [super init])) {
     _allocations = allocations;
@@ -23,6 +39,7 @@
     _aliveObjects = aliveObjects;
     _className = className;
     _instanceSize = instanceSize;
+    _allocatedObjectsInfo = allocatedObjectsInfo;
   }
 
   return self;
@@ -30,7 +47,7 @@
 
 -(NSString *)description
 {
-  return [NSString stringWithFormat:@"%@: allocations=%@ deallocations=%@ alive=%@ size=%@", _className, @(_allocations), @(_deallocations), @(_aliveObjects), @(_instanceSize)];
+  return [NSString stringWithFormat:@"%@: allocations=%@ deallocations=%@ alive=%@ size=%@", _className, @(_allocations), @(_deallocations.count), @(_aliveObjects), @(_instanceSize)];
 }
 
 @end

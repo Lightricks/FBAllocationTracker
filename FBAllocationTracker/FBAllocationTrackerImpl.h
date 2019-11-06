@@ -14,6 +14,7 @@
 #import "FBAllocationTrackerDefines.h"
 #import "FBAllocationTrackerFunctors.h"
 #import "FBAllocationTrackerGenerationManager.h"
+#import "FBAllocationTrackerSummary.h"
 
 /**
  FBAllocationTracker is a simple tool that's only purpose is to be able to track
@@ -35,8 +36,8 @@
 namespace FB { namespace AllocationTracker {
 
   struct SingleClassSummary {
-    NSUInteger allocations;
-    NSUInteger deallocations;
+    NSArray<FBSingleObjectAllocation *> *allocatedObjectsInfo;
+    NSArray<NSNumber *> *deallocatedObjectsPointers;
     NSUInteger instanceSize;
   };
 

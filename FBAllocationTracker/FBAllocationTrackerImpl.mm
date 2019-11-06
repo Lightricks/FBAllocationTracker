@@ -16,6 +16,7 @@
 
 #import "FBAllocationTrackerDefines.h"
 #import "FBAllocationTrackerHelpers.h"
+#import "FBAllocationTrackerSummary.h"
 #import "NSObject+FBAllocationTracker.h"
 
 #if _INTERNAL_FBAT_ENABLED
@@ -30,7 +31,7 @@ namespace {
   using TrackerMap =
   std::unordered_map<
   __unsafe_unretained Class,
-  NSUInteger,
+  NSMutableArray<FBSingleObjectAllocation *> *,
   FB::AllocationTracker::ClassHashFunctor,
   FB::AllocationTracker::ClassEqualFunctor>;
 
@@ -154,14 +155,20 @@ namespace FB { namespace AllocationTracker {
       return false;
     }
 
-    // We want to omit some classes for performance reasons
-    static Class blacklistedTaggedPointerContainerClass;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-      blacklistedTaggedPointerContainerClass = NSClassFromString(@"NSTaggedPointerStringCStringContainer");
-    });
+    static NSArray<Class> *blacklistedClasses = @[
+      // We want to omit some classes for performance reasons
+      (Class _Nonnull)NSClassFromString(@"NSTaggedPointerStringCStringContainer"),
+      // Tracking allocations for the following classes would cause an infinite loop or a deadlock
+      // because of the objects created to in \c incrementAllocations.
+      (Class _Nonnull)NSClassFromString(@"__NSSingleEntryDictionaryI"),
+      (Class _Nonnull)NSClassFromString(@"__NSArrayM"),
+      (Class _Nonnull)NSClassFromString(@"_NSCallStackArray"),
+      (Class _Nonnull)NSClassFromString(@"__NSArrayI"),
+      (Class _Nonnull)NSClassFromString(@"NSConcreteValue"),
+      FBSingleObjectAllocation.class
+    ];
 
-    if (aCls == blacklistedTaggedPointerContainerClass) {
+    if ([blacklistedClasses containsObject:aCls]) {
       return false;
     }
 
@@ -175,10 +182,17 @@ namespace FB { namespace AllocationTracker {
       return;
     }
 
+    auto addresses = [NSThread callStackReturnAddresses];
+
     std::lock_guard<std::mutex> l(*_lock);
 
     if (_trackingInProgress) {
-      (*_allocations)[aCls]++;
+      if ((*_allocations).find(aCls) == (*_allocations).end()) {
+        (*_allocations)[aCls] = [NSMutableArray array];
+      }
+      auto singleObjectAllocation = [[FBSingleObjectAllocation alloc] initWithObjectPointer:[NSValue valueWithNonretainedObject:obj]
+                                                                         callStackAddresses:addresses];
+      [(*_allocations)[aCls] addObject:singleObjectAllocation];
     }
 
     if (_generationManager) {
@@ -196,7 +210,12 @@ namespace FB { namespace AllocationTracker {
     std::lock_guard<std::mutex> l(*_lock);
 
     if (_trackingInProgress) {
-      (*_deallocations)[aCls]++;
+      if ((*_deallocations).find(aCls) == (*_deallocations).end()) {
+        (*_deallocations)[aCls] = [NSMutableArray array];
+      }
+      auto singleObjectAllocation = [[FBSingleObjectAllocation alloc] initWithObjectPointer:[NSValue valueWithNonretainedObject:obj]
+                                                                         callStackAddresses:nil];
+      [(*_deallocations)[aCls] addObject:singleObjectAllocation];
     }
 
     if (_generationManager) {
@@ -205,14 +224,18 @@ namespace FB { namespace AllocationTracker {
   }
 
   AllocationSummary allocationTrackerSummary() {
-    TrackerMap allocationsUntilNow;
-    TrackerMap deallocationsUntilNow;
+    TrackerMap allocationsUntilNow = {};
+    TrackerMap deallocationsUntilNow = {};
 
     {
       std::lock_guard<std::mutex> l(*_lock);
 
-      allocationsUntilNow = TrackerMap(*_allocations);
-      deallocationsUntilNow = TrackerMap(*_deallocations);
+      for (auto pair : *_allocations) {
+        allocationsUntilNow[pair.first] = [pair.second mutableCopy];
+      }
+      for (auto pair : *_deallocations) {
+        deallocationsUntilNow[pair.first] = [pair.second mutableCopy];
+      }
     }
 
     std::unordered_set<
@@ -232,14 +255,19 @@ namespace FB { namespace AllocationTracker {
 
     for (Class aCls: keys) {
       // Non-zero instances are the only interesting ones
-      if (allocationsUntilNow[aCls] - deallocationsUntilNow[aCls] <= 0) {
+      if (allocationsUntilNow[aCls].count - deallocationsUntilNow[aCls].count <= 0) {
         continue;
       }
 
+      NSMutableArray<NSValue *> *deallocations = [NSMutableArray array];
+      for (FBSingleObjectAllocation *objectDeallocation in deallocationsUntilNow[aCls]) {
+        [deallocations addObject:objectDeallocation.objectPointer];
+      }
+
       SingleClassSummary singleSummary = {
-        .allocations = allocationsUntilNow[aCls],
-        .deallocations = deallocationsUntilNow[aCls],
-        .instanceSize = class_getInstanceSize(aCls),
+        .allocatedObjectsInfo = allocationsUntilNow[aCls],
+        .deallocatedObjectsPointers = [deallocations copy],
+        .instanceSize = class_getInstanceSize(aCls)
       };
 
       summary[aCls] = singleSummary;
