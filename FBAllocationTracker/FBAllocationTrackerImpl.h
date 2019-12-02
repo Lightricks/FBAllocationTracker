@@ -37,7 +37,7 @@ namespace FB { namespace AllocationTracker {
 
   struct SingleClassSummary {
     NSArray<FBSingleObjectAllocation *> *allocatedObjectsInfo;
-    NSArray<NSNumber *> *deallocatedObjectsPointers;
+    NSArray<NSValue *> *deallocatedObjectsPointers;
     NSUInteger instanceSize;
   };
 

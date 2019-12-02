@@ -11,11 +11,11 @@
 
 @implementation FBSingleObjectAllocation : NSObject
 
-- (nonnull instancetype)initWithObjectPointer:(nonnull NSValue *)objectPointer
-                           callStackAddresses:(nullable NSArray<NSNumber *> *)callStackAddresses
+- (nonnull instancetype)initWithObject:(nullable id)object
+                    callStackAddresses:(nullable NSArray<NSNumber *> *)callStackAddresses
 {
   if ((self = [super init])) {
-    _objectPointer = objectPointer;
+    _object = object;
     _callStackAddresses = callStackAddresses;
   }
 
@@ -27,7 +27,7 @@
 @implementation FBAllocationTrackerSummary
 
 - (nonnull instancetype)initWithAllocations:(NSUInteger)allocations
-                              deallocations:(nonnull NSArray<NSNumber *> *)deallocations
+                              deallocations:(nonnull NSArray<NSValue *> *)deallocations
                                aliveObjects:(NSInteger)aliveObjects
                                   className:(nonnull NSString *)className
                                instanceSize:(NSUInteger)instanceSize

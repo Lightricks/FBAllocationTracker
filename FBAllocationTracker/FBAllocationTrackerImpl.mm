@@ -31,7 +31,7 @@ namespace {
   using TrackerMap =
   std::unordered_map<
   __unsafe_unretained Class,
-  NSMutableArray<FBSingleObjectAllocation *> *,
+  NSMutableArray<NSObject *> *, // \c FBSingleObjectAllocation or \c NSValue
   FB::AllocationTracker::ClassHashFunctor,
   FB::AllocationTracker::ClassEqualFunctor>;
 
@@ -151,7 +151,8 @@ namespace FB { namespace AllocationTracker {
   }
 
   static bool _shouldTrackClass(Class aCls) {
-    if (aCls == Nil) {
+    if (aCls == Nil || aCls == NSException.class ||
+        aCls == NSClassFromString(@"_NSCallStackArray")) {
       return false;
     }
 
@@ -162,9 +163,16 @@ namespace FB { namespace AllocationTracker {
       // because of the objects created to in \c incrementAllocations.
       (Class _Nonnull)NSClassFromString(@"__NSSingleEntryDictionaryI"),
       (Class _Nonnull)NSClassFromString(@"__NSArrayM"),
-      (Class _Nonnull)NSClassFromString(@"_NSCallStackArray"),
       (Class _Nonnull)NSClassFromString(@"__NSArrayI"),
       (Class _Nonnull)NSClassFromString(@"NSConcreteValue"),
+      (Class _Nonnull)NSClassFromString(@"NSAutoreleasePool"),
+      (Class _Nonnull)NSClassFromString(@"NSATSGlyphStorage"), // Cannot form weak ref upon allocation
+      (Class _Nonnull)NSClassFromString(@"_CTNativeGlyphStorage"), // Cannot form weak ref upon allocation
+#if TARGET_OS_SIMULATOR
+      (Class _Nonnull)NSClassFromString(@"FigFCRCALayerOutputNodeLayer"), // Cannot form weak ref upon allocation
+#endif
+      (Class _Nonnull)NSClassFromString(@"SVGLayer"), // Cannot form weak ref upon allocation
+      (Class _Nonnull)NSClassFromString(@"CAShapeLayer"), // Cannot form weak ref upon allocation
       FBSingleObjectAllocation.class
     ];
 
@@ -190,8 +198,8 @@ namespace FB { namespace AllocationTracker {
       if ((*_allocations).find(aCls) == (*_allocations).end()) {
         (*_allocations)[aCls] = [NSMutableArray array];
       }
-      auto singleObjectAllocation = [[FBSingleObjectAllocation alloc] initWithObjectPointer:[NSValue valueWithNonretainedObject:obj]
-                                                                         callStackAddresses:addresses];
+      auto singleObjectAllocation = [[FBSingleObjectAllocation alloc] initWithObject:obj
+                                                                  callStackAddresses:addresses];
       [(*_allocations)[aCls] addObject:singleObjectAllocation];
     }
 
@@ -213,9 +221,7 @@ namespace FB { namespace AllocationTracker {
       if ((*_deallocations).find(aCls) == (*_deallocations).end()) {
         (*_deallocations)[aCls] = [NSMutableArray array];
       }
-      auto singleObjectAllocation = [[FBSingleObjectAllocation alloc] initWithObjectPointer:[NSValue valueWithNonretainedObject:obj]
-                                                                         callStackAddresses:nil];
-      [(*_deallocations)[aCls] addObject:singleObjectAllocation];
+      [(*_deallocations)[aCls] addObject:[NSValue valueWithNonretainedObject:obj]];
     }
 
     if (_generationManager) {
@@ -259,13 +265,13 @@ namespace FB { namespace AllocationTracker {
         continue;
       }
 
-      NSMutableArray<NSValue *> *deallocations = [NSMutableArray array];
-      for (FBSingleObjectAllocation *objectDeallocation in deallocationsUntilNow[aCls]) {
-        [deallocations addObject:objectDeallocation.objectPointer];
+      NSMutableArray<NSValue *> *deallocations = [NSMutableArray new];
+      for (NSValue *objectPointer in deallocationsUntilNow[aCls]) {
+        [deallocations addObject:objectPointer];
       }
 
       SingleClassSummary singleSummary = {
-        .allocatedObjectsInfo = allocationsUntilNow[aCls],
+        .allocatedObjectsInfo = (NSMutableArray<FBSingleObjectAllocation *> *)allocationsUntilNow[aCls],
         .deallocatedObjectsPointers = [deallocations copy],
         .instanceSize = class_getInstanceSize(aCls)
       };

@@ -13,11 +13,11 @@
 
 @interface FBSingleObjectAllocation : NSObject
 
-@property (nonatomic, readonly, nonnull) NSValue *objectPointer;
+@property (weak, nonatomic, readonly, nullable) id object;
 @property (nonatomic, readonly, nullable) NSArray<NSNumber *> *callStackAddresses;
 
-- (nonnull instancetype)initWithObjectPointer:(nonnull NSValue *)objectPointer
-                           callStackAddresses:(nullable NSArray<NSNumber *> *)callStackAddresses;
+- (nonnull instancetype)initWithObject:(nullable id)object
+                    callStackAddresses:(nullable NSArray<NSNumber *> *)callStackAddresses;
 
 @end
 
@@ -31,7 +31,7 @@
 @property (nonatomic, readonly, nonnull) NSArray<FBSingleObjectAllocation *> *allocatedObjectsInfo;
 
 - (nonnull instancetype)initWithAllocations:(NSUInteger)allocations
-                              deallocations:(nonnull NSArray<NSNumber *> *)deallocations
+                              deallocations:(nonnull NSArray<NSValue *> *)deallocations
                                aliveObjects:(NSInteger)aliveObjects
                                   className:(nonnull NSString *)className
                                instanceSize:(NSUInteger)instanceSize
