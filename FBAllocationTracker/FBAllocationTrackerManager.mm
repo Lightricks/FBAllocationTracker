@@ -64,6 +64,10 @@ BOOL FBIsFBATEnabledInThisBuild(void)
   FB::AllocationTracker::beginTracking();
 }
 
+- (void)runBlockWhileBlockingAllocations:(void (^)(void))block {
+  FB::AllocationTracker::runBlockWhileBlockingAllocations(block);
+}
+
 - (void)enableGenerations
 {
   dispatch_sync(_queue, ^{

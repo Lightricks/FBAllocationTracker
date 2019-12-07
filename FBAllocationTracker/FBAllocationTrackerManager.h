@@ -38,6 +38,8 @@ BOOL FBIsFBATEnabledInThisBuild(void);
  */
 - (void)startTrackingAllocations;
 
+- (void)runBlockWhileBlockingAllocations:(void (^_Nonnull)(void))block;
+
 /**
  Disable tracking allocations. It will clear all data gathered so far.
  */

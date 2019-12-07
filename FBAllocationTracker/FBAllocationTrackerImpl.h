@@ -86,6 +86,8 @@ namespace FB { namespace AllocationTracker {
    */
   void markGeneration();
 
+  void runBlockWhileBlockingAllocations(void (^block)());
+
   /**
    Summary for all generations. It will be similar to allocations summary, but grouped by generations.
    */
