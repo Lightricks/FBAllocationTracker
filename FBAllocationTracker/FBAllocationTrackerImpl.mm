@@ -39,7 +39,7 @@ namespace {
   static auto *_allocations = new TrackerMap();
   static auto *_deallocations = new TrackerMap();
   static bool _trackingInProgress = false;
-  static auto *_lock = (new std::mutex);
+  static auto *_lock = (new std::recursive_mutex);
 
   // Private interface
   static bool _didCopyOriginalMethods = false;
@@ -118,7 +118,7 @@ namespace {
 namespace FB { namespace AllocationTracker {
 
   void beginTracking() {
-    std::lock_guard<std::mutex> l(*_lock);
+    std::lock_guard<std::recursive_mutex> l(*_lock);
 
     if (_trackingInProgress) {
       return;
@@ -130,7 +130,7 @@ namespace FB { namespace AllocationTracker {
   }
 
   void endTracking() {
-    std::lock_guard<std::mutex> l(*_lock);
+    std::lock_guard<std::recursive_mutex> l(*_lock);
 
     if (!_trackingInProgress) {
       return;
@@ -145,9 +145,14 @@ namespace FB { namespace AllocationTracker {
   }
 
   bool isTracking() {
-    std::lock_guard<std::mutex> l(*_lock);
+    std::lock_guard<std::recursive_mutex> l(*_lock);
     bool isTracking = _trackingInProgress;
     return isTracking;
+  }
+
+  void runBlockWhileBlockingAllocations(void (^block)()) {
+    std::lock_guard<std::recursive_mutex> l(*_lock);
+    block();
   }
 
   static bool _shouldTrackClass(Class aCls) {
@@ -192,7 +197,7 @@ namespace FB { namespace AllocationTracker {
 
     auto addresses = [NSThread callStackReturnAddresses];
 
-    std::lock_guard<std::mutex> l(*_lock);
+    std::lock_guard<std::recursive_mutex> l(*_lock);
 
     if (_trackingInProgress) {
       if ((*_allocations).find(aCls) == (*_allocations).end()) {
@@ -215,7 +220,7 @@ namespace FB { namespace AllocationTracker {
       return;
     }
 
-    std::lock_guard<std::mutex> l(*_lock);
+    std::lock_guard<std::recursive_mutex> l(*_lock);
 
     if (_trackingInProgress) {
       if ((*_deallocations).find(aCls) == (*_deallocations).end()) {
@@ -234,7 +239,7 @@ namespace FB { namespace AllocationTracker {
     TrackerMap deallocationsUntilNow = {};
 
     {
-      std::lock_guard<std::mutex> l(*_lock);
+      std::lock_guard<std::recursive_mutex> l(*_lock);
 
       for (auto pair : *_allocations) {
         allocationsUntilNow[pair.first] = [pair.second mutableCopy];
@@ -283,7 +288,7 @@ namespace FB { namespace AllocationTracker {
   }
 
   void enableGenerations() {
-    std::lock_guard<std::mutex> l(*_lock);
+    std::lock_guard<std::recursive_mutex> l(*_lock);
 
     if (_generationManager) {
       return;
@@ -293,21 +298,21 @@ namespace FB { namespace AllocationTracker {
   }
 
   void disableGenerations(void) {
-    std::lock_guard<std::mutex> l(*_lock);
+    std::lock_guard<std::recursive_mutex> l(*_lock);
 
     delete _generationManager;
     _generationManager = nil;
   }
 
   void markGeneration(void) {
-    std::lock_guard<std::mutex> l(*_lock);
+    std::lock_guard<std::recursive_mutex> l(*_lock);
     if (_generationManager) {
       _generationManager->markGeneration();
     }
   }
 
   FullGenerationSummary generationSummary() {
-    std::lock_guard<std::mutex> l(*_lock);
+    std::lock_guard<std::recursive_mutex> l(*_lock);
 
     if (_generationManager) {
       return _generationManager->summary();
@@ -332,7 +337,7 @@ namespace FB { namespace AllocationTracker {
       return std::vector<__weak id> {};
     }
 
-    std::lock_guard<std::mutex> l(*_lock);
+    std::lock_guard<std::recursive_mutex> l(*_lock);
     if (_generationManager) {
       return _generationManager->instancesOfClassInGeneration(aCls, generationIndex);
     }
@@ -354,7 +359,7 @@ namespace FB { namespace AllocationTracker {
       std::vector<__weak id> instancesFromGeneration;
 
       {
-        std::lock_guard<std::mutex> l(*_lock);
+        std::lock_guard<std::recursive_mutex> l(*_lock);
         instancesFromGeneration = _generationManager->instancesOfClassInLastGeneration(aCls);
       }
 
@@ -370,7 +375,7 @@ namespace FB { namespace AllocationTracker {
   }
 
   std::vector<__unsafe_unretained Class> trackedClasses() {
-    std::lock_guard<std::mutex> l(*_lock);
+    std::lock_guard<std::recursive_mutex> l(*_lock);
     std::vector<__unsafe_unretained Class> trackedClasses;
 
     // Some first approximation for number of classes
